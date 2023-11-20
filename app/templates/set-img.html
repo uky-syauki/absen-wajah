@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Recorder</title>
+</head>
+<body>
+
+<video id="video" width="640" height="480" autoplay></video>
+<button id="startRecord">Start Recording</button>
+<button id="stopRecord" disabled>Stop Recording</button>
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const video = document.getElementById('video');
+        const startRecordBtn = document.getElementById('startRecord');
+        const stopRecordBtn = document.getElementById('stopRecord');
+
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then((stream) => {
+                video.srcObject = stream;
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+
+                    // Kirim data ke API setiap 2 detik
+                    setInterval(() => {
+                        captureAndSendToAPI();
+                    }, 3000);
+                };
+            })
+            .catch((error) => {
+                console.error('Error accessing camera:', error);
+            });
+
+        startRecordBtn.addEventListener('click', () => {
+            recordedChunks = [];
+            mediaRecorder.start();
+            startRecordBtn.disabled = true;
+            stopRecordBtn.disabled = false;
+        });
+
+        stopRecordBtn.addEventListener('click', () => {
+            mediaRecorder.stop();
+            startRecordBtn.disabled = false;
+            stopRecordBtn.disabled = true;
+        });
+
+        function captureAndSendToAPI() {
+            // Membuat elemen canvas
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Menggambar frame video ke canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Mengambil gambar dari canvas sebagai blob
+            canvas.toBlob((blob) => {
+                // Kirim data ke API menggunakan fetch atau XMLHttpRequest
+                sendCaptureToAPI(blob);
+            }, 'image/jpeg'); // Ganti dengan 'image/png' jika ingin menggunakan format PNG
+        }
+
+        function sendCaptureToAPI(blob) {
+            // Kirim data ke API menggunakan fetch atau XMLHttpRequest
+            fetch('/api/set-img', {
+                method: 'POST',
+                body: blob,
+                headers: {
+                    'Content-Type': 'image/jpeg' // Ganti dengan 'image/png' jika menggunakan format PNG
+                }
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Error sending capture to API:', error));
+        }
+    });
+</script>
+
+</body>
+</html>
